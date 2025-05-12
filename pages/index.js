@@ -38,6 +38,8 @@ const uiConfig = {
 }
 
 export default function Home() {
+  const { authUser, isLoading } = useAuth();
+  const router = useRouter();
   const [login, setLogin] = useState(false);
   
   return (
