@@ -18,9 +18,10 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import StyledFirebaseAuth from 'react-firebaseui/StyledFirebaseAuth';
 import { EmailAuthProvider, GoogleAuthProvider } from 'firebase/auth';
 import { Button, CircularProgress, Container, Dialog, Typography } from '@mui/material';
-import { auth } from '../firebase/firebase';
+import { useAuth } from '../firebase/auth';
 import styles from '../styles/landing.module.scss';
 
 export default function Home() {
