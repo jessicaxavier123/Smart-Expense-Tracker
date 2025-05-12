@@ -23,6 +23,14 @@ import { Button, CircularProgress, Container, Dialog, Typography } from '@mui/ma
 import { auth } from '../firebase/firebase';
 import styles from '../styles/landing.module.scss';
 
+const REDIRECT_PAGE = '/dashboard';
+
+// configure Firebase UI
+const uiConfig = {
+  signInFlow: 'popup', // signIn flow with popup rather than redirect flow
+  signInSuccessUrl: REDIRECT_PAGE,
+}
+
 export default function Home() {
   const router = useRouter();
 
