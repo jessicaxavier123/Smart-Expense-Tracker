@@ -1,131 +1,148 @@
-/**
- * @license
- * Copyright 2022 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { useState, useEffect } from 'react';
-import { Avatar, Button, Dialog, DialogActions, DialogContent, Stack, TextField, Typography } from '@mui/material';
-import AdapterDateFns from '@mui/lab/AdapterDateFns';
-import DatePicker from '@mui/lab/DatePicker';
-import LocalizationProvider from '@mui/lab/LocalizationProvider';
-import { useAuth } from '../firebase/auth';
-import { addReceipt, updateReceipt } from '../firebase/firestore';
-import { replaceImage, uploadImage } from '../firebase/storage';
-import { RECEIPTS_ENUM } from '../pages/dashboard';
+import {
+  Dialog,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  CircularProgress,
+} from '@mui/material';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { useAuth } from '../src/firebase/auth';
+import { addReceipt, updateReceipt } from '../src/firebase/firestore';
 import styles from '../styles/expenseDialog.module.scss';
 
 const DEFAULT_FILE_NAME = "No file selected";
 
 // Default form state for the dialog
-const DEFAULT_FORM_STATE = {
-  fileName: DEFAULT_FILE_NAME,
-  file: null,
+const DEFAULT = {
   date: null,
-  locationName: "",
-  address: "",
-  items: "",
-  amount: "",
+  locationName: '',
+  address: '',
+  items: '',
+  amount: '',
+  imageUrl: ''
 };
 
 /* 
- Dialog to input receipt information
- 
- props:
-  - edit is the receipt to edit
-  - showDialog boolean for whether to show this dialog
-  - onError emits to notify error occurred
-  - onSuccess emits to notify successfully saving receipt
-  - onCloseDialog emits to close dialog
+Dialog to input receipt information
+
+props:
+- edit is the receipt to edit
+- showDialog boolean for whether to show this dialog
+- onError emits to notify error occurred
+- onSuccess emits to notify successfully saving receipt
+- onCloseDialog emits to close dialog
  */
-export default function ExpenseDialog(props) {
-  const isEdit = Object.keys(props.edit).length > 0;
-  const [formFields, setFormFields] = useState(isEdit ? props.edit : DEFAULT_FORM_STATE);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export default function ExpenseDialog({
+  edit = {},
+  showDialog,
+  onCloseDialog,
+  onSuccess,
+  onError
+}) {
+  const isEdit = Boolean(edit.id);
+  const { authUser } = useAuth();
+  const [form, setForm] = useState(DEFAULT);
+  const [submitting, setSubmitting] = useState(false);
 
-  // If the receipt to edit or whether to close or open the dialog ever changes, reset the form fields
-  useEffect(() => {
-    if (props.showDialog) {
-      setFormFields(isEdit ? props.edit : DEFAULT_FORM_STATE);
+useEffect(() => {
+  if (showDialog) {
+    setForm(
+      isEdit
+        ? { ...DEFAULT, ...edit }
+        : DEFAULT
+    );
+  }
+}, [showDialog, edit, isEdit]);
+
+
+  const handleChange = (field) => (e) =>
+    setForm(f => ({ ...f, [field]: e.target.value }));
+  const handleDate = (date) =>
+    setForm(f => ({ ...f, date }));
+
+  const handleSave = async () => {
+    setSubmitting(true);
+    try {
+      if (isEdit) {
+        await updateReceipt(authUser.uid, edit.id, form);
+      } else {
+        await addReceipt(authUser.uid, form);
+      }
+      onSuccess();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSubmitting(false);
     }
-  }, [props.edit, props.showDialog])
-
-  // Check whether any of the form fields are unedited
-  const isDisabled = () => formFields.fileName === DEFAULT_FILE_NAME || !formFields.date || formFields.locationName.length === 0 
-                     || formFields.address.length === 0 || formFields.items.length === 0 || formFields.amount.length === 0;
-
-  // Update given field in the form
-  const updateFormField = (event, field) => {
-    setFormFields(prevState => ({...prevState, [field]: event.target.value}))
-  }
-
-  // Set the relevant fields for receipt image
-  const setFileData = (target) => {
-    const file = target.files[0];
-    setFormFields(prevState => ({...prevState, fileName: file.name}));
-    setFormFields(prevState => ({...prevState, file}));
-  }
-
-  const closeDialog = () => {
-    setIsSubmitting(false);
-    props.onCloseDialog();
-  }
+  };
 
   return (
-    <Dialog classes={{paper: styles.dialog}}
-      onClose={() => closeDialog()}
-      open={props.showDialog}
-      component="form">
-      <Typography variant="h4" className={styles.title}>
-        {isEdit ? "EDIT" : "ADD"} EXPENSE
-      </Typography>
-      <DialogContent className={styles.fields}>
-        <Stack direction="row" spacing={2} className={styles.receiptImage}>
-          {(isEdit && !formFields.fileName) && <Avatar alt="receipt image" src={formFields.imageUrl} sx={{ marginRight: '1em' }}/> }
-          <Button variant="outlined" component="label" color="secondary">
-            Upload Receipt
-            <input type="file" hidden onInput={(event) => {setFileData(event.target)}} />
-          </Button>
-          <Typography>{formFields.fileName}</Typography>
-        </Stack>
-        <Stack>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
+    <Dialog open={showDialog} onClose={onCloseDialog}>
+      <DialogContent>
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
           <DatePicker
-              label="Date"
-              value={formFields.date}
-              onChange={(newDate) => {
-                setFormFields(prevState => ({...prevState, date: newDate}));
-              }}
-              maxDate={new Date()}
-              renderInput={(params) => <TextField color="tertiary" {...params} />}
-            />
-          </LocalizationProvider>
-        </Stack>
-        <TextField color="tertiary" label="Location name" variant="standard" value={formFields.locationName} onChange={(event) => updateFormField(event, 'locationName')} />
-        <TextField color="tertiary" label="Location address" variant="standard" value={formFields.address} onChange={(event) => updateFormField(event, 'address')} />
-        <TextField color="tertiary" label="Items" variant="standard" value={formFields.items} onChange={(event) => updateFormField(event, 'items')} />
-        <TextField color="tertiary" label="Amount" variant="standard" value={formFields.amount} onChange={(event) => updateFormField(event, 'amount')} />
+            label="Date"
+            value={form.date}
+            onChange={handleDate}
+            renderInput={(params) => (
+              <TextField {...params} fullWidth margin="normal" />
+            )}
+          />
+        </LocalizationProvider>
+
+        <TextField
+          label="Location"
+          value={form.locationName}
+          onChange={handleChange('locationName')}
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          label="Address"
+          value={form.address}
+          onChange={handleChange('address')}
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          label="Items"
+          value={form.items}
+          onChange={handleChange('items')}
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          label="Amount"
+          type="number"
+          value={form.amount}
+          onChange={handleChange('amount')}
+          fullWidth
+          margin="normal"
+        />
       </DialogContent>
+
       <DialogActions>
-        {isSubmitting ? 
-          <Button color="secondary" variant="contained" disabled={true}>
-            Submitting...
-          </Button> :
-          <Button color="secondary" variant="contained" disabled={isDisabled()}>
-            Submit
-          </Button>}
+        <Button onClick={onCloseDialog} disabled={submitting}>
+          Cancel
+        </Button>
+        {/* SAVE / UPDATE button */}
+        <Button 
+        variant="contained"
+        color="primary"
+        onClick={handleSave}
+        disabled={submitting}>
+          {submitting
+            ? <CircularProgress size={24} />
+            : isEdit
+              ? 'Save Changes'
+              : 'Save Receipt'}
+        </Button>
       </DialogActions>
     </Dialog>
-  )
+  );
 }
+
+  // Check whether any of the form fields are unedited
