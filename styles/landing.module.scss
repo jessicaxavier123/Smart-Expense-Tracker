@@ -1,15 +1,23 @@
-@import "variables.module";
+@use "variables.module" as *;
 
 .container {
   font-size: 84px;
   margin-top: 2em;
+  /* center all text inside the container */
+  text-align: center;
 }
 
 .buttons {
   display: flex;
+ /* evenly space inputs & button */
+  gap: 1rem;
+  /* push everything into the middle */
+  justify-content: center;
   margin-top: 0.5em;
 }
 
 .login-button {
   background-color: $primary;
+  /* ensure text on the button is visible */
+  color: white;
 }
